@@ -1,24 +1,141 @@
-import React from 'react';
-import logo from './logo.svg';
+import React, {startTransition, useCallback, useEffect, useMemo, useState} from 'react';
 import './App.css';
 
+interface BookInterface {
+  bookId:number
+  title:string
+  firstName:string
+  lastName:string
+  totalCopies: number
+  copiesInUse: number
+  type: string
+  isbn:string
+  category:string
+}
+
+interface BookRequestInterface {
+  total: number
+  totalPages:number
+  items:BookInterface[]
+}
+
+const searchBy = {
+  bookId: 'ID',
+  title: 'Title',
+  firstName: 'First name',
+  lastName: 'Last name',
+  totalCopies: 'Total of copies',
+  copiesInUse: 'Copies in use',
+  type: 'Type',
+  isbn: 'ISBN',
+  category: 'Category'
+}
+
 function App() {
+  const [books,setBooks] = useState<BookRequestInterface>({
+    items:[],
+    total:50,
+    totalPages:0
+  })
+
+  const [page,setPage] = useState(0)
+  const [limit,setLimit] = useState(5)
+  const [termSearch,setTermSearch] = useState('')
+  const [searchType,setSearchType] = useState('')
+  const [error,setError] = useState(false)
+
+  const {totalPages,pageItems} = useMemo(() => {
+    const totalPages = Math.ceil(books.total / limit)
+    const pageItems = Array.from(Array(totalPages)).map((i,index) => index+1)
+
+    return {totalPages,pageItems}
+  },[books.total,limit])
+
+  const handleChangeFilterOrPage = useCallback(({nextPage,nextLimit,search,searchType}:{nextPage?:number;nextLimit?:number,search?:string;searchType?:string}) => {
+    if(search !== undefined && search !== termSearch){
+      startTransition(() => {
+        setPage(0)
+        setTermSearch(search)
+        setSearchType(searchType|| '')
+      })
+    }
+    else if(nextLimit !== undefined && nextLimit !== limit){
+      startTransition(() => {
+        setPage(0)
+        setLimit(nextLimit)
+      })
+    }
+    else if(nextPage!== undefined && page !== nextPage && page <= totalPages) {
+      setPage(nextPage)
+    }
+  },[limit,page,termSearch])
+
+  const fetchBooks = useCallback(async () => {
+    try {
+      const response = await fetch('url',{method:'GET'})
+      const data = await response.json() as BookRequestInterface
+      startTransition(() => {
+      setBooks(data)
+        setError(false)
+      })
+    }catch (e){
+      setError(true)
+    }
+  },[termSearch,limit,page])
+
+  useEffect(() => {
+    fetchBooks().then()
+  }, [fetchBooks]);
+
+  console.log(pageItems)
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      <form className={'box'} onSubmit={(e) => {
+        e.preventDefault()
+
+        const selectValue = document.querySelector<HTMLSelectElement>('[name="searchType"]')?.value as string
+        const inputValue = document.querySelector<HTMLInputElement>('[name="searchTerm"]')?.value as string
+
+        handleChangeFilterOrPage({searchType:selectValue,search:inputValue})
+      }}>
+        <div className={'flex-column'}>
+        <p>Search by:</p>
+        <select name={'searchType'}>
+          {(Object.keys(searchBy) as Array<keyof typeof searchBy>).map(key => <option value={key} key={key}>{searchBy[key]}</option>)}
+        </select>
+        </div>
+        <div className={'flex-column'}>
+          <p>Search by:</p>
+          <input type={'text'} name={'searchTerm'} />
+        </div>
+        <button type={'submit'}>Search</button>
+      </form>
+      <div className={'box'}>
+        <table>
+          <thead>
+          <tr>
+            {(Object.keys(searchBy) as Array<keyof typeof searchBy>).map(key => <td key={key}>{searchBy[key]}</td>)}
+          </tr>
+          </thead>
+          <tbody>
+          {books.items.map(book => <tr>
+            <td>{book.bookId}</td>
+            <td>{book.title}</td>
+            <td>{book.firstName}</td>
+            <td>{book.lastName}</td>
+            <td>{book.totalCopies}</td>
+            <td>{book.copiesInUse}/{book.totalCopies}</td>
+            <td>{book.type}</td>
+            <td>{book.isbn}</td>
+            <td>{book.category}</td>
+          </tr>)}
+          </tbody>
+        </table>
+        <div className={'pagination'}>
+        {pageItems.map((item,index) => <button key={item} onClick={() => handleChangeFilterOrPage({nextPage:index})}>{item}</button>)}
+        </div>
+      </div>
     </div>
   );
 }
