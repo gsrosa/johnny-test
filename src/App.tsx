@@ -14,8 +14,9 @@ interface BookInterface {
 }
 
 interface BookRequestInterface {
-  total: number
-  totalPages:number
+  totalCount: number
+  pageSize:number
+  pageNumber:number
   items:BookInterface[]
 }
 
@@ -31,11 +32,14 @@ const searchBy = {
   category: 'Category'
 }
 
+const URL_REQUEST = 'https://localhost:7117/book'
+
 function App() {
   const [books,setBooks] = useState<BookRequestInterface>({
     items:[],
-    total:50,
-    totalPages:0
+    totalCount:0,
+    pageSize:0,
+    pageNumber:0
   })
 
   const [page,setPage] = useState(0)
@@ -44,12 +48,9 @@ function App() {
   const [searchType,setSearchType] = useState('')
   const [error,setError] = useState(false)
 
-  const {totalPages,pageItems} = useMemo(() => {
-    const totalPages = Math.ceil(books.total / limit)
-    const pageItems = Array.from(Array(totalPages)).map((i,index) => index+1)
-
-    return {totalPages,pageItems}
-  },[books.total,limit])
+  const pageItems= useMemo(() => {
+    return Array.from(Array(books.pageSize)).map((i,index) => index+1)
+  },[books.totalCount,limit])
 
   const handleChangeFilterOrPage = useCallback(({nextPage,nextLimit,search,searchType}:{nextPage?:number;nextLimit?:number,search?:string;searchType?:string}) => {
     if(search !== undefined && search !== termSearch){
@@ -65,17 +66,17 @@ function App() {
         setLimit(nextLimit)
       })
     }
-    else if(nextPage!== undefined && page !== nextPage && page <= totalPages) {
+    else if(nextPage!== undefined && page !== nextPage && page <= books.pageSize) {
       setPage(nextPage)
     }
   },[limit,page,termSearch])
 
   const fetchBooks = useCallback(async () => {
     try {
-      const response = await fetch('url',{method:'GET'})
+      const response = await fetch(URL_REQUEST+`?termSearch=${termSearch}&pageNumber=${page}&pageSize=${limit}&type=${searchType}` ,{method:'GET'})
       const data = await response.json() as BookRequestInterface
       startTransition(() => {
-      setBooks(data)
+        setBooks(data)
         setError(false)
       })
     }catch (e){
@@ -86,8 +87,6 @@ function App() {
   useEffect(() => {
     fetchBooks().then()
   }, [fetchBooks]);
-
-  console.log(pageItems)
 
   return (
     <div className="App">
@@ -132,6 +131,7 @@ function App() {
           </tr>)}
           </tbody>
         </table>
+        {error && <p>Request error, please try again or later!</p>}
         <div className={'pagination'}>
         {pageItems.map((item,index) => <button key={item} onClick={() => handleChangeFilterOrPage({nextPage:index})}>{item}</button>)}
         </div>
